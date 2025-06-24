@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Route Tester</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .success { background-color: #d4edda; border-color: #c3e6cb; }
+        .error { background-color: #f8d7da; border-color: #f5c6cb; }
+        .info { background-color: #d1ecf1; border-color: #bee5eb; }
+        button { margin: 5px; padding: 10px 15px; cursor: pointer; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 3px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <h1>🔧 API Route Tester</h1>
+    <p>Click the buttons below to test different API routes:</p>
+
+    <div class="test-section info">
+        <h3>🔐 Authentication Tests</h3>
+        <button onclick="testRegister()">Test Register</button>
+        <button onclick="testLogin()">Test Login</button>
+        <button onclick="testLogout()">Test Logout</button>
+        <div id="auth-results"></div>
+    </div>
+
+    <div class="test-section info">
+        <h3>👥 User Management Tests</h3>
+        <button onclick="testGetUsers()">Get All Users</button>
+        <button onclick="testUpdatePassword()">Update Password</button>
+        <div id="user-results"></div>
+    </div>
+
+    <div class="test-section info">
+        <h3>📂 Category Tests</h3>
+        <button onclick="testGetCategories()">Get Categories</button>
+        <button onclick="testAddCategory()">Add Category</button>
+        <button onclick="testUpdateCategory()">Update Category</button>
+        <button onclick="testDeleteCategory()">Delete Category</button>
+        <div id="category-results"></div>
+    </div>
+
+    <div class="test-section info">
+        <h3>📦 Product Tests</h3>
+        <button onclick="testGetProducts()">Get Products</button>
+        <button onclick="testAddProduct()">Add Product</button>
+        <button onclick="testUpdateProduct()">Update Product</button>
+        <button onclick="testDeleteProduct()">Delete Product</button>
+        <button onclick="testProductFilters()">Test Filters</button>
+        <div id="product-results"></div>
+    </div>
+
+    <div class="test-section info">
+        <h3>🚀 Complete Flow Test</h3>
+        <button onclick="runCompleteTest()">Run All Tests</button>
+        <div id="complete-results"></div>
+    </div>
+
+    <script>
+        let currentUser = null;
+        let testData = {
+            categoryId: null,
+            productId: null,
+            userId: null
+        };
+
+        // Helper function to make API requests
+        async function makeRequest(url, options = {}) {
+            try {
+                const response = await fetch(url, {
+                    ...options,
+                    credentials: 'include',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...options.headers,
+                    },
+                });
+                
+                const data = await response.json();
+                return { response, data, success: response.ok };
+            } catch (error) {
+                return { response: null, data: { message: error.message }, success: false };
+            }
+        }
+
+        // Display results
+        function displayResult(elementId, title, result, isSuccess = true) {
+            const element = document.getElementById(elementId);
+            const className = isSuccess ? 'success' : 'error';
+            element.innerHTML = `
+                <div class="${className}">
+                    <h4>${title}</h4>
+                    <pre>${JSON.stringify(result, null, 2)}</pre>
+                </div>
+            `;
+        }
+
+        // Authentication Tests
+        async function testRegister() {
+            const result = await makeRequest('/api/auth/register', {
+                method: 'POST',
+                body: JSON.stringify({
+                    fullName: 'Test User',
+                    email: 'test@example.com',
+                    username: 'testuser',
+                    password: 'password123',
+                    role: 'Admin'
+                })
+            });
+            displayResult('auth-results', 'Register Test', result.data, result.success);
+        }
+
+        async function testLogin() {
+            const result = await makeRequest('/api/auth/login', {
+                method: 'POST',
+                body: JSON.stringify({
+                    username: 'testuser',
+                    password: 'password123'
+                })
+            });
+            if (result.success) {
+                currentUser = result.data.user;
+            }
+            displayResult('auth-results', 'Login Test', result.data, result.success);
+        }
+
+        async function testLogout() {
+            const result = await makeRequest('/api/auth/logout', {
+                method: 'POST'
+            });
+            currentUser = null;
+            displayResult('auth-results', 'Logout Test', result.data, result.success);
+        }
+
+        // User Tests
+        async function testGetUsers() {
+            const result = await makeRequest('/api/users');
+            if (result.success && result.data.length > 0) {
+                testData.userId = result.data[0]._id;
+            }
+            displayResult('user-results', 'Get Users Test', result.data, result.success);
+        }
+
+        async function testUpdatePassword() {
+            const result = await makeRequest('/api/users/update-password', {
+                method: 'PUT',
+                body: JSON.stringify({
+                    oldPassword: 'password123',
+                    newPassword: 'newpassword123'
+                })
+            });
+            displayResult('user-results', 'Update Password Test', result.data, result.success);
+        }
+
+        // Category Tests
+        async function testGetCategories() {
+            const result = await makeRequest('/api/categories');
+            displayResult('category-results', 'Get Categories Test', result.data, result.success);
+        }
+
+        async function testAddCategory() {
+            const result = await makeRequest('/api/categories', {
+                method: 'POST',
+                body: JSON.stringify({
+                    name: 'Test Category',
+                    description: 'A test category'
+                })
+            });
+            if (result.success && result.data.category) {
+                testData.categoryId = result.data.category._id;
+            }
+            displayResult('category-results', 'Add Category Test', result.data, result.success);
+        }
+
+        async function testUpdateCategory() {
+            if (!testData.categoryId) {
+                displayResult('category-results', 'Update Category Test', { message: 'No category ID available. Add a category first.' }, false);
+                return;
+            }
+            const result = await makeRequest(`/api/categories/${testData.categoryId}`, {
+                method: 'PUT',
+                body: JSON.stringify({
+                    name: 'Updated Test Category',
+                    description: 'Updated description'
+                })
+            });
+            displayResult('category-results', 'Update Category Test', result.data, result.success);
+        }
+
+        async function testDeleteCategory() {
+            if (!testData.categoryId) {
+                displayResult('category-results', 'Delete Category Test', { message: 'No category ID available. Add a category first.' }, false);
+                return;
+            }
+            const result = await makeRequest(`/api/categories/${testData.categoryId}`, {
+                method: 'DELETE'
+            });
+            displayResult('category-results', 'Delete Category Test', result.data, result.success);
+        }
+
+        // Product Tests
+        async function testGetProducts() {
+            const result = await makeRequest('/api/products');
+            displayResult('product-results', 'Get Products Test', result.data, result.success);
+        }
+
+        async function testAddProduct() {
+            if (!testData.categoryId) {
+                displayResult('product-results', 'Add Product Test', { message: 'No category ID available. Add a category first.' }, false);
+                return;
+            }
+            const result = await makeRequest('/api/products', {
+                method: 'POST',
+                body: JSON.stringify({
+                    name: 'Test Product',
+                    description: 'A test product',
+                    price: 99.99,
+                    stock: 10,
+                    imageUrl: 'https://example.com/image.jpg',
+                    category: testData.categoryId,
+                    availability: true
+                })
+            });
+            if (result.success && result.data.product) {
+                testData.productId = result.data.product._id;
+            }
+            displayResult('product-results', 'Add Product Test', result.data, result.success);
+        }
+
+        async function testUpdateProduct() {
+            if (!testData.productId) {
+                displayResult('product-results', 'Update Product Test', { message: 'No product ID available. Add a product first.' }, false);
+                return;
+            }
+            const result = await makeRequest(`/api/products/${testData.productId}`, {
+                method: 'PUT',
+                body: JSON.stringify({
+                    name: 'Updated Test Product',
+                    price: 89.99
+                })
+            });
+            displayResult('product-results', 'Update Product Test', result.data, result.success);
+        }
+
+        async function testDeleteProduct() {
+            if (!testData.productId) {
+                displayResult('product-results', 'Delete Product Test', { message: 'No product ID available. Add a product first.' }, false);
+                return;
+            }
+            const result = await makeRequest(`/api/products/${testData.productId}`, {
+                method: 'DELETE'
+            });
+            displayResult('product-results', 'Delete Product Test', result.data, result.success);
+        }
+
+        async function testProductFilters() {
+            const result = await makeRequest('/api/products?name=Test&minPrice=50&maxPrice=150&availability=true');
+            displayResult('product-results', 'Product Filters Test', result.data, result.success);
+        }
+
+        // Complete Flow Test
+        async function runCompleteTest() {
+            const results = [];
+            
+            // 1. Register
+            results.push('1. Registering user...');
+            const registerResult = await makeRequest('/api/auth/register', {
+                method: 'POST',
+                body: JSON.stringify({
+                    fullName: 'Complete Test User',
+                    email: 'complete@test.com',
+                    username: 'completetest',
+                    password: 'password123',
+                    role: 'Admin'
+                })
+            });
+            results.push(`Register: ${registerResult.success ? '✅' : '❌'} ${registerResult.data.message}`);
+
+            // 2. Login
+            results.push('2. Logging in...');
+            const loginResult = await makeRequest('/api/auth/login', {
+                method: 'POST',
+                body: JSON.stringify({
+                    username: 'completetest',
+                    password: 'password123'
+                })
+            });
+            results.push(`Login: ${loginResult.success ? '✅' : '❌'} ${loginResult.data.message}`);
+
+            if (loginResult.success) {
+                currentUser = loginResult.data.user;
+                
+                // 3. Add Category
+                results.push('3. Adding category...');
+                const categoryResult = await makeRequest('/api/categories', {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        name: 'Complete Test Category',
+                        description: 'Category for complete test'
+                    })
+                });
+                results.push(`Add Category: ${categoryResult.success ? '✅' : '❌'} ${categoryResult.data.message}`);
+
+                if (categoryResult.success) {
+                    testData.categoryId = categoryResult.data.category._id;
+                    
+                    // 4. Add Product
+                    results.push('4. Adding product...');
+                    const productResult = await makeRequest('/api/products', {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            name: 'Complete Test Product',
+                            description: 'Product for complete test',
+                            price: 199.99,
+                            stock: 20,
+                            imageUrl: 'https://example.com/complete.jpg',
+                            category: testData.categoryId,
+                            availability: true
+                        })
+                    });
+                    results.push(`Add Product: ${productResult.success ? '✅' : '❌'} ${productResult.data.message}`);
+
+                    if (productResult.success) {
+                        testData.productId = productResult.data.product._id;
+                        
+                        // 5. Test Filters
+                        results.push('5. Testing filters...');
+                        const filterResult = await makeRequest('/api/products?name=Complete&minPrice=100&maxPrice=300');
+                        results.push(`Filters: ${filterResult.success ? '✅' : '❌'} Found ${filterResult.data.length} products`);
+                    }
+                }
+            }
+
+            // 6. Logout
+            results.push('6. Logging out...');
+            const logoutResult = await makeRequest('/api/auth/logout', {
+                method: 'POST'
+            });
+            results.push(`Logout: ${logoutResult.success ? '✅' : '❌'} ${logoutResult.data.message}`);
+
+            displayResult('complete-results', 'Complete Flow Test Results', results.join('\n'), true);
+        }
+    </script>
+</body>
+</html> 
